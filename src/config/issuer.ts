@@ -47,17 +47,6 @@ export const initializeIssuerAgent = async (port: number) => {
       );
     });
 
-  await agent.credentials.offerCredential({
-    protocolVersion: "v2",
-    connectionId: "",
-    credentialFormats: {
-      anoncreds: {
-        credentialDefinitionId: "",
-        attributes: [{ name: "name", value: "Jim Ezesinachi" }],
-      },
-    },
-  });
-
   console.log("Importing issuer DID...");
   const issuerDid = await importDid({
     agent,

@@ -17,32 +17,10 @@ const holderPort = 3002;
 app.listen(port, async () => {
   const { issuer, holder } = await initialize({ issuerPort, holderPort });
 
-  await issuer.agent.credentials.offerCredential({
-    protocolVersion: "v2",
-    connectionId: "",
-    credentialFormats: {
-      anoncreds: {
-        credentialDefinitionId: "",
-        attributes: [{ name: "name", value: "Jim Ezesinachi" }],
-      },
-    },
-  });
-
   const { issuerOutOfBandRecord, holderOutOfBandRecord } = await connect({
     issuer: issuer.agent,
     holder: holder.agent,
     port: issuerPort,
-  });
-
-  await issuer.agent.credentials.offerCredential({
-    protocolVersion: "v2",
-    connectionId: "",
-    credentialFormats: {
-      anoncreds: {
-        credentialDefinitionId: "",
-        attributes: [{ name: "name", value: "Jim Ezesinachi" }],
-      },
-    },
   });
 
   const issuerConnection = (
@@ -80,17 +58,6 @@ app.listen(port, async () => {
       console.log("Issuing...");
 
       const { data: input } = parseResult;
-
-      await issuer.agent.credentials.offerCredential({
-        protocolVersion: "v2",
-        connectionId: "",
-        credentialFormats: {
-          anoncreds: {
-            credentialDefinitionId: "",
-            attributes: [{ name: "name", value: "Jim Ezesinachi" }],
-          },
-        },
-      });
 
       const issuanceResult = await issue({
         issuer: issuer.agent,
