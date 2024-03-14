@@ -1,10 +1,9 @@
 import {
   Agent,
-  InitConfig,
   ConsoleLogger,
+  InitConfig,
   LogLevel,
   HttpOutboundTransport,
-  WsOutboundTransport,
 } from "@aries-framework/core";
 import { agentDependencies, HttpInboundTransport } from "@aries-framework/node";
 
@@ -30,11 +29,9 @@ export const initializeIssuerAgent = async (port: number) => {
     dependencies: agentDependencies,
   });
 
-  agent.registerOutboundTransport(new WsOutboundTransport());
+  agent.registerInboundTransport(new HttpInboundTransport({ port }));
 
   agent.registerOutboundTransport(new HttpOutboundTransport());
-
-  agent.registerInboundTransport(new HttpInboundTransport({ port }));
 
   await agent
     .initialize()

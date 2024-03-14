@@ -1,16 +1,16 @@
 import {
-  Agent,
   ConnectionEventTypes,
+  ConnectionRecord,
   ConnectionStateChangedEvent,
-  DidExchangeState,
   OutOfBandRecord,
 } from "@aries-framework/core";
+import { AgentType } from "../config/base";
 
 const createNewInvitation = async ({
   agent,
   port,
 }: {
-  agent: Agent<any>;
+  agent: AgentType;
   port: number;
 }) => {
   const outOfBandRecord = await agent.oob.createInvitation();
@@ -27,7 +27,7 @@ const createLegacyInvitation = async ({
   agent,
   port,
 }: {
-  agent: Agent<any>;
+  agent: AgentType;
   port: number;
 }) => {
   const { invitation } = await agent.oob.createLegacyInvitation();
@@ -35,7 +35,7 @@ const createLegacyInvitation = async ({
   return invitation.toUrl({ domain: `http://localhost:${port}` });
 };
 
-const receiveInvitation = async (agent: Agent<any>, invitationUrl: string) => {
+const receiveInvitation = async (agent: AgentType, invitationUrl: string) => {
   const { outOfBandRecord } = await agent.oob.receiveInvitationFromUrl(
     invitationUrl
   );
@@ -43,23 +43,58 @@ const receiveInvitation = async (agent: Agent<any>, invitationUrl: string) => {
   return outOfBandRecord;
 };
 
-const setupConnectionListener = (
-  agent: Agent<any>,
-  outOfBandRecord: OutOfBandRecord,
-  cb: (...args: any) => void
+const setupRequesterConnectionListener = async (
+  agent: AgentType,
+  outOfBandRecord: OutOfBandRecord
 ) => {
-  agent.events.on<ConnectionStateChangedEvent>(
-    ConnectionEventTypes.ConnectionStateChanged,
-    async ({ payload }) => {
-      if (payload.connectionRecord.outOfBandId !== outOfBandRecord.id) return;
-      if (payload.connectionRecord.state === DidExchangeState.Completed) {
-        console.log(
-          `Connection for out-of-band id ${outOfBandRecord.id} completed`
-        );
+  console.log("Waiting for holder to accept connection request...");
 
-        cb();
-      }
-    }
+  const getConnectionRecord = (outOfBandId: string) =>
+    new Promise<ConnectionRecord>((resolve, reject) => {
+      // Timeout of 30 seconds
+      const timeoutId = setTimeout(
+        () => reject(new Error("Missing connection record!")),
+        30000
+      );
+
+      // Start listener
+      agent.events.on<ConnectionStateChangedEvent>(
+        ConnectionEventTypes.ConnectionStateChanged,
+        ({ payload }) => {
+          if (payload.connectionRecord.outOfBandId !== outOfBandId) return;
+
+          clearTimeout(timeoutId);
+          resolve(payload.connectionRecord);
+        }
+      );
+
+      // Also retrieve the connection record by invitation if the event has already fired
+      void agent.connections
+        .findAllByOutOfBandId(outOfBandId)
+        .then(([connectionRecord]) => {
+          if (connectionRecord) {
+            clearTimeout(timeoutId);
+            resolve(connectionRecord);
+          }
+        });
+    });
+
+  const requesterConnectionRecord = await getConnectionRecord(
+    outOfBandRecord.id
+  );
+
+  try {
+    await agent.connections.returnWhenIsConnected(requesterConnectionRecord.id);
+  } catch (e) {
+    console.log("Attempt to establish connection failed!");
+    return;
+  }
+
+  console.log(
+    `Connection for out-of-band id ${outOfBandRecord.id} is completed!`
+  );
+  console.log(
+    "Connection between requester and responder is established successfully!"
   );
 };
 
@@ -68,26 +103,30 @@ export const connect = async ({
   holder,
   port,
 }: {
-  issuer: Agent<any>;
-  holder: Agent<any>;
+  issuer: AgentType;
+  holder: AgentType;
   port: number;
 }) => {
-  console.log("Creating the invitation as issuer...");
-  const { outOfBandRecord: issuerOutOfBandRecord, invitationUrl } =
+  console.log("Creating the invitation as requester...");
+  const { outOfBandRecord: requesterOutOfBandRecord, invitationUrl } =
     await createNewInvitation({
       agent: issuer,
       port,
     });
 
-  console.log("Listening for connection state changes as issuer...");
-  setupConnectionListener(issuer, issuerOutOfBandRecord, () =>
-    console.log(
-      "Connection between issuer and holder is established successfully!"
-    )
+  console.log("Listening for connection state changes as requester...");
+  const requesterConnectionListenerPromise = setupRequesterConnectionListener(
+    issuer,
+    requesterOutOfBandRecord
   );
 
-  console.log("Accepting the invitation as holder...");
-  const holderOutOfBandRecord = await receiveInvitation(holder, invitationUrl);
+  console.log("Accepting the invitation as responder...");
+  const responderOutOfBandRecord = await receiveInvitation(
+    holder,
+    invitationUrl
+  );
 
-  return { issuerOutOfBandRecord, holderOutOfBandRecord } as const;
+  await requesterConnectionListenerPromise;
+
+  return { requesterOutOfBandRecord, responderOutOfBandRecord } as const;
 };

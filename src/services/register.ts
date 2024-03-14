@@ -1,18 +1,23 @@
-import { Agent } from "@aries-framework/core";
 import crypto from "node:crypto";
+import { AgentType } from "../config/base";
+import { RegisterSchemaReturn } from "@aries-framework/anoncreds";
 
 const registerSchema = async ({
   agent,
   indyDid,
+  schemaName,
 }: {
-  agent: Agent<any>;
+  agent: AgentType;
   indyDid: string;
+  schemaName: string | undefined;
 }) => {
   const schemaResult = await agent.modules.anoncreds.registerSchema({
     schema: {
       attrNames: ["name"],
       issuerId: indyDid,
-      name: `Jim Ezesinachi Example Schema - ${crypto.randomUUID()}`,
+      name:
+        `${schemaName} - ${crypto.randomUUID()}` ??
+        `Jim Ezesinachi Example Schema - ${crypto.randomUUID()}`,
       version: "1.0.0",
     },
     options: {},
@@ -32,10 +37,16 @@ const registerCredentialDefinition = async ({
   indyDid,
   schemaResult,
 }: {
-  agent: Agent<any>;
+  agent: AgentType;
   indyDid: string;
-  schemaResult: any;
+  schemaResult: RegisterSchemaReturn;
 }) => {
+  if (!schemaResult.schemaState.schemaId) {
+    throw new Error(
+      `Error creating credential definition: No schema id passed`
+    );
+  }
+
   const credentialDefinitionResult =
     await agent.modules.anoncreds.registerCredentialDefinition({
       credentialDefinition: {
@@ -55,17 +66,20 @@ const registerCredentialDefinition = async ({
   }
 };
 
-export const define = async ({
+export const register = async ({
   issuer,
   issuerDid,
+  schemaName,
 }: {
-  issuer: Agent<any>;
+  issuer: AgentType;
   issuerDid: string;
+  schemaName: string | undefined;
 }) => {
   console.log("Registering a schema as issuer...");
   const schemaResult = await registerSchema({
     agent: issuer,
     indyDid: issuerDid,
+    schemaName,
   });
 
   console.log("Registering a credential definition as issuer...");

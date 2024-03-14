@@ -1,11 +1,12 @@
-import { Agent, KeyType, TypedArrayEncoder } from "@aries-framework/core";
+import { KeyType, TypedArrayEncoder } from "@aries-framework/core";
+import { AgentType } from "../config/base";
 
 export const importDid = async ({
   agent,
   seed,
   did,
 }: {
-  agent: Agent<any>;
+  agent: AgentType;
   seed: string;
   did: string;
 }) => {

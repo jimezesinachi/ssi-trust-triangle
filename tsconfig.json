@@ -9,13 +9,11 @@
     "target": "ES2017",
     "declaration": true,
     "noEmitOnError": true,
-    // "lib": [],
     "types": ["node"],
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    // TODO: we should update code to assume errors are of type 'unknown'
     "useUnknownInCatchVariables": false
   }
 }

@@ -1,58 +1,87 @@
+import "dotenv/config";
 import express from "express";
 import { initialize } from "./services/initialize";
 import { connect } from "./services/connect";
-import { define } from "./services/define";
+import { register } from "./services/register";
 import { issue } from "./services/issue";
 import { verify } from "./services/verify";
 import {
-  IssueCredentialInputSchema,
-  RequestProofInputSchema,
+  RegisterSchemaAndCredentialDefinitionInputValidator,
+  IssueCredentialInputValidator,
+  RequestProofInputValidator,
 } from "./validators/zod";
 
 const app = express();
-const port = 3000;
-const issuerPort = 3001;
-const holderPort = 3002;
+const port = Number(process.env.SERVER_PORT);
+const issuerPort = Number(process.env.ISSUER_INBOUND_TRANSPORT_PORT);
+const holderPort = Number(process.env.HOLDER_INBOUND_TRANSPORT_PORT);
 
 app.listen(port, async () => {
-  const { issuer, holder } = await initialize({ issuerPort, holderPort });
+  const { issuer, holder } = await initialize({
+    issuerPort,
+    holderPort,
+  });
 
-  const { issuerOutOfBandRecord, holderOutOfBandRecord } = await connect({
+  const { requesterOutOfBandRecord, responderOutOfBandRecord } = await connect({
     issuer: issuer.agent,
     holder: holder.agent,
     port: issuerPort,
   });
 
-  const issuerConnection = (
-    await issuer.agent.connections.findAllByOutOfBandId(
-      issuerOutOfBandRecord.id
-    )
-  )[0];
+  const issuerConnections = await issuer.agent.connections.findAllByOutOfBandId(
+    requesterOutOfBandRecord.id
+  );
+  const issuerConnection = issuerConnections[0];
 
-  const holderConnection = (
-    await holder.agent.connections.findAllByOutOfBandId(
-      holderOutOfBandRecord.id
-    )
-  )[0];
+  const holderConnections = await holder.agent.connections.findAllByOutOfBandId(
+    responderOutOfBandRecord.id
+  );
+  const holderConnection = holderConnections[0];
 
   app.use(express.json());
 
-  app.get("/define", async (req, res) => {
-    console.log("Defining...");
-
-    const definitionResult = await define({
-      issuer: issuer.agent,
-      issuerDid: issuer.issuerDid,
-    });
-
-    return res.status(201).send({
-      message: "Defined!",
-      data: definitionResult,
-    });
+  app.get("/connection-status", async (req, res) => {
+    if (issuerConnection && holderConnection) {
+      return res.status(200).send({
+        status: "connected",
+        message: "Agent-to-agent connection is up!",
+      });
+    } else
+      return res.status(500).send({
+        status: "disconnected",
+        mesaage:
+          "Agent-to-agent connection is down! Please check server and restart!",
+      });
   });
 
-  app.post("/issue", async (req, res) => {
-    const parseResult = IssueCredentialInputSchema.safeParse(req.body);
+  app.post("/register-schema-and-credential-definition", async (req, res) => {
+    const parseResult =
+      RegisterSchemaAndCredentialDefinitionInputValidator.safeParse(req.body);
+
+    if (parseResult.success) {
+      console.log("Registering...");
+
+      const { data: input } = parseResult;
+
+      const registrationResult = await register({
+        issuer: issuer.agent,
+        issuerDid: issuer.issuerDid,
+        schemaName: input.schemaName,
+      });
+
+      return res.status(201).send({
+        message: "Registered!",
+        data: registrationResult,
+      });
+    } else
+      return res.status(400).send({
+        messsage: "Bad Request! Invalid input received!",
+        data: parseResult.error.format(),
+      });
+  });
+
+  app.post("/issue-credential", async (req, res) => {
+    const parseResult = IssueCredentialInputValidator.safeParse(req.body);
 
     if (parseResult.success) {
       console.log("Issuing...");
@@ -67,7 +96,7 @@ app.listen(port, async () => {
         holderName: input.holderName,
       });
 
-      return res.status(201).send({ message: "Issued!", data: issuanceResult });
+      return res.status(200).send({ message: "Issued!", data: issuanceResult });
     } else
       return res.status(400).send({
         messsage: "Bad Request! Invalid input received!",
@@ -75,8 +104,8 @@ app.listen(port, async () => {
       });
   });
 
-  app.post("/verify", async (req, res) => {
-    const parseResult = RequestProofInputSchema.safeParse(req.body);
+  app.post("/verify-credential", async (req, res) => {
+    const parseResult = RequestProofInputValidator.safeParse(req.body);
 
     if (parseResult.success) {
       console.log("Verifying...");
@@ -91,7 +120,7 @@ app.listen(port, async () => {
       });
 
       return res
-        .status(201)
+        .status(200)
         .send({ message: "Verified!", data: verificationResult });
     } else
       return res.status(400).send({

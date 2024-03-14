@@ -1,12 +1,11 @@
 import {
   Agent,
   ConsoleLogger,
-  LogLevel,
   InitConfig,
+  LogLevel,
   HttpOutboundTransport,
-  WsOutboundTransport,
 } from "@aries-framework/core";
-import { HttpInboundTransport, agentDependencies } from "@aries-framework/node";
+import { agentDependencies, HttpInboundTransport } from "@aries-framework/node";
 
 import { getAgentModules } from "../utils/getAgentModules";
 import { importDid } from "../utils/importDid";
@@ -19,6 +18,7 @@ export const initializeHolderAgent = async (port: number) => {
       id: "jim-ezesinachi-holder-agent-wallet-id-0",
       key: "jim-ezesinachi-holder-agent-test-key-0000000000000000000000000",
     },
+    endpoints: [`http://localhost:${port}`],
     connectionImageUrl: "https://picsum.photos/200",
     autoUpdateStorageOnStartup: true,
   };
@@ -29,11 +29,9 @@ export const initializeHolderAgent = async (port: number) => {
     dependencies: agentDependencies,
   });
 
-  agent.registerOutboundTransport(new HttpOutboundTransport());
-
-  agent.registerOutboundTransport(new WsOutboundTransport());
-
   agent.registerInboundTransport(new HttpInboundTransport({ port }));
+
+  agent.registerOutboundTransport(new HttpOutboundTransport());
 
   await agent
     .initialize()
