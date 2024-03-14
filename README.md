@@ -44,27 +44,27 @@ The base endpoint (when testing locally) is of the format: <http://localhost:POR
 
 This is a basic endpoint to check that the server is up, and that it can receive requests.
 
-Endpoint: `/`
+**Endpoint:** `/`
 
-Method: `GET`
+**Method:** `GET`
 
 ### Agent-to-agent connection
 
 During startup, the server attempts to setup the agent-to-agent connection. This endpoint allows you to check the status of the connection.
 
-Endpoint: `/connection-status`
+**Endpoint:** `/connection-status`
 
-Method: `GET`
+**Method:** `GET`
 
 ### Register a schema and credential definition
 
 Register a schema and a corresponding credential definition to the DID network registry. This endpoint takes a JSON body.
 
-Endpoint: `/register-schema-and-credential-definition`
+**Endpoint:** `/register-schema-and-credential-definition`
 
-Method: `POST`
+**Method:** `POST`
 
-Body:
+**Body:**
 
 ```json
 {
@@ -76,11 +76,11 @@ Body:
 
 Trigger a credential issuance offer from the issuer agent to the holder agent. This endpoint takes a JSON body.
 
-Endpoint: `/issue-credential`
+**Endpoint:** `/issue-credential`
 
-Method: `POST`
+**Method:** `POST`
 
-Body:
+**Body:**
 
 ```json
 {
@@ -93,11 +93,11 @@ Body:
 
 Trigger a proof presentation request from the issuer agent to the holder agent. This endpoint takes a JSON body.
 
-Endpoint: `/verify-credential`
+**Endpoint:** `/verify-credential`
 
-Method: `POST`
+**Method:** `POST`
 
-Body:
+**Body:**
 
 ```json
 {
