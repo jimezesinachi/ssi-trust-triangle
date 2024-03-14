@@ -1,6 +1,6 @@
 # SSI Trust Triangle
 
-This is a demo app showing the basic tenet of self-sovereign identity: a "cryptographic trust" -based communication session between three parties: a credential issuer, a credential holder, and a credential verifier.
+This is a demo app showing the basic tenet of self-sovereign identity: a "cryptographic trust" - based communication session between three parties: a credential issuer, a credential holder, and a credential verifier.
 
 The `issuer` issues a cryprographically secure credential to the `holder`, which in turn can use their credential to prove some `attribute` of theirs contained in their credential to any `verifier` requesting such, thus forming a trust triangle.
 
@@ -40,7 +40,7 @@ The server exposes a RESTful API which can be used to trigger actions and commun
 
 The base endpoint (when testing locally) is of the format: <http://localhost:PORT>, where `PORT` is the `SERVER_PORT` as defined in your `.env` file.
 
-### Server health
+### Check server health
 
 This is a basic endpoint to check that the server is up, and that it can receive requests.
 
@@ -48,7 +48,7 @@ This is a basic endpoint to check that the server is up, and that it can receive
 
 **Method:** `GET`
 
-### Agent-to-agent connection
+### Check agent-to-agent connection status
 
 During startup, the server attempts to setup the agent-to-agent connection. This endpoint allows you to check the status of the connection.
 

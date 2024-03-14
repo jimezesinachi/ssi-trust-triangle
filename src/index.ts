@@ -132,9 +132,13 @@ app.listen(port, async () => {
   app.get("/", (req, res) => {
     return res.status(200).send({
       message: "Welcome to Jim Ezesinachi's SSI trust triangle demo app!",
-      data: req,
     });
   });
 
-  console.log(`SSI trust triangle demo app listening on port ${port}`);
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error(err);
+    res.status(500).send("Internal server error!");
+  });
+
+  console.log(`SSI trust triangle demo app listening on port ${port}!`);
 });
