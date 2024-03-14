@@ -1,6 +1,6 @@
 # SSI Trust Triangle
 
-This is a demo app showing the basic tenet of self-sovereign identity: "cryptographic trust" -based communication between three parties: a credential issuer, a credential holder, and a credential verifier.
+This is a demo app showing the basic tenet of self-sovereign identity: a "cryptographic trust" -based communication session between three parties: a credential issuer, a credential holder, and a credential verifier.
 
 The `issuer` issues a cryprographically secure credential to the `holder`, which in turn can use their credential to prove some `attribute` of theirs contained in their credential to any `verifier` requesting such, thus forming a trust triangle.
 
