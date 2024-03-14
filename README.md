@@ -38,7 +38,7 @@ Tech stack used:
 
 The server exposes a RESTful API which can be used to trigger actions and communication between the agents.
 
-The base endpoint (when testing locally) is of the format: <http://localhost:`PORT`>, where `PORT` is the `SERVER_PORT` as defined in your `.env` file.
+The base endpoint (when testing locally) is of the format: <http://localhost:PORT>, where `PORT` is the `SERVER_PORT` as defined in your `.env` file.
 
 ### Server health
 
