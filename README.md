@@ -27,7 +27,7 @@ Tech stack used:
 4. Create a `.env` file by copying the `.env.example` file in this repository. On Unix-based systems, the following command should work:
 
    ```sh
-       cp .env.example .env
+   cp .env.example .env
    ```
 
    **NOTE:** You should edit the .env file to any port numbers of your choice.
