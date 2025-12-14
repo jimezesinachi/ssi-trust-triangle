@@ -1,91 +1,98 @@
+import { ConnectionsModule } from "@credo-ts/core";
 import {
-  ConnectionsModule,
-  CredentialsModule,
-  ProofsModule,
-  DidsModule,
-  AutoAcceptCredential,
-  V2CredentialProtocol,
-  AutoAcceptProof,
-  V2ProofProtocol,
-} from "@aries-framework/core";
-import { AskarModule } from "@aries-framework/askar";
+  OpenId4VcHolderModule,
+  OpenId4VcIssuerModule,
+  OpenId4VcVerifierModule,
+} from "@credo-ts/openid4vc";
+import { AskarModule } from "@credo-ts/askar";
 import { ariesAskar } from "@hyperledger/aries-askar-nodejs";
-import {
-  AnonCredsCredentialFormatService,
-  AnonCredsModule,
-  AnonCredsProofFormatService,
-  LegacyIndyCredentialFormatService,
-  LegacyIndyProofFormatService,
-  V1CredentialProtocol,
-  V1ProofProtocol,
-} from "@aries-framework/anoncreds";
-import {
-  IndyVdrAnonCredsRegistry,
-  IndyVdrIndyDidRegistrar,
-  IndyVdrIndyDidResolver,
-  IndyVdrModule,
-} from "@aries-framework/indy-vdr";
-import { anoncreds } from "@hyperledger/anoncreds-nodejs";
-import { AnonCredsRsModule } from "@aries-framework/anoncreds-rs";
-import { indyVdr } from "@hyperledger/indy-vdr-nodejs";
-import { indyNetworkConfig } from "../constants/bcovrin";
+import { Router } from "express";
 
-export const getAgentModules = () => {
+import { credentialRequestToCredentialMapper } from "./credentialRequestToCredentialMapper";
+
+export const getIssuerAgentModules = (
+  port: number,
+  issuerRouter: Router,
+  verifierRouter: Router
+) => {
+  return {
+    askar: new AskarModule({
+      ariesAskar,
+    }),
+
+    // askar: new AskarModule({ askar, store: { id: name, key: name } }),
+    // kms: new Kms.KeyManagementModule({
+    //   backends: [new NodeKeyManagementService(new NodeInMemoryKeyManagementStorage())],
+    // }),
+
+    connections: new ConnectionsModule({
+      autoAcceptConnections: true,
+    }),
+
+    openId4VcIssuer: new OpenId4VcIssuerModule({
+      baseUrl: `http://localhost:${port}/oid4vci`,
+      router: issuerRouter,
+      endpoints: {
+        credential: {
+          credentialRequestToCredentialMapper,
+        },
+      },
+    }),
+
+    openId4VcVerifier: new OpenId4VcVerifierModule({
+      baseUrl: `http://localhost:${port}/siop`,
+      router: verifierRouter,
+    }),
+  } as const;
+};
+
+export const getHolderAgentModules = () => {
+  return {
+    askar: new AskarModule({
+      ariesAskar,
+    }),
+
+    // askar: new AskarModule({ askar, store: { id: name, key: name } }),
+    // kms: new Kms.KeyManagementModule({
+    //   backends: [new NodeKeyManagementService(new NodeInMemoryKeyManagementStorage())],
+    // }),
+
+    connections: new ConnectionsModule({
+      autoAcceptConnections: true,
+    }),
+
+    openId4VcHolderModule: new OpenId4VcHolderModule(),
+  } as const;
+};
+
+type AgentModules = {
+  connections: ConnectionsModule;
+  openId4VcIssuer?: OpenId4VcIssuerModule;
+  openId4VcVerifier?: OpenId4VcVerifierModule;
+  openId4VcHolderModule?: OpenId4VcHolderModule;
+};
+
+export const getAgentModules = (): AgentModules => {
   return {
     connections: new ConnectionsModule({
       autoAcceptConnections: true,
     }),
 
-    credentials: new CredentialsModule({
-      autoAcceptCredentials: AutoAcceptCredential.ContentApproved,
-      credentialProtocols: [
-        new V1CredentialProtocol({
-          indyCredentialFormat: new LegacyIndyCredentialFormatService(),
-        }),
-        new V2CredentialProtocol({
-          credentialFormats: [
-            new LegacyIndyCredentialFormatService(),
-            new AnonCredsCredentialFormatService(),
-          ],
-        }),
-      ],
+    openId4VcIssuer: new OpenId4VcIssuerModule({
+      baseUrl: `http://localhost:3000/oid4vci`,
+      router: Router(),
+      endpoints: {
+        credential: {
+          credentialRequestToCredentialMapper,
+        },
+      },
     }),
 
-    proofs: new ProofsModule({
-      autoAcceptProofs: AutoAcceptProof.ContentApproved,
-      proofProtocols: [
-        new V1ProofProtocol({
-          indyProofFormat: new LegacyIndyProofFormatService(),
-        }),
-        new V2ProofProtocol({
-          proofFormats: [
-            new LegacyIndyProofFormatService(),
-            new AnonCredsProofFormatService(),
-          ],
-        }),
-      ],
+    openId4VcVerifier: new OpenId4VcVerifierModule({
+      baseUrl: `http://localhost:3000/siop`,
+      router: Router(),
     }),
 
-    anoncreds: new AnonCredsModule({
-      registries: [new IndyVdrAnonCredsRegistry()],
-    }),
-
-    anoncredsRs: new AnonCredsRsModule({
-      anoncreds,
-    }),
-
-    indyVdr: new IndyVdrModule({
-      indyVdr,
-      networks: [indyNetworkConfig],
-    }),
-
-    dids: new DidsModule({
-      resolvers: [new IndyVdrIndyDidResolver()],
-      registrars: [new IndyVdrIndyDidRegistrar()],
-    }),
-
-    askar: new AskarModule({
-      ariesAskar,
-    }),
+    openId4VcHolderModule: new OpenId4VcHolderModule(),
   } as const;
 };

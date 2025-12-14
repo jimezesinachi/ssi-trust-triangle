@@ -18,9 +18,9 @@ Tech stack used:
 
 1. Clone this repository.
 
-2. Install the [Classic Yarn](https://classic.yarnpkg.com/) JavaScript package manager globally on your machine (if you don't already have it installed). Also install [Node.js](https://nodejs.org/) `version 18 LTS`, or switch to it if you're using a version switcher.
+2. Install the [Classic Yarn](https://classic.yarnpkg.com/) JavaScript package manager globally on your machine (if you don't already have it installed). Also install [Node.js](https://nodejs.org/) `version 20 LTS`, or switch to it if you're using a version switcher.
 
-   **NOTE:** It is important you use `version 18 LTS`, as it is the highest LTS version compatible with the SSI framework packages.
+   **NOTE:** It is important you use `version 20 LTS`, as it is the highest LTS version compatible with the SSI framework packages.
 
 3. Open a terminal window/tab in the root of your cloned repository directory, then run the command: `yarn` to install the needed packages.
 
@@ -32,7 +32,7 @@ Tech stack used:
 
    **NOTE:** You should edit the .env file to any port numbers of your choice.
 
-5. Run the `yarn dev` command to start the server and setup the agent-to-agent connection.
+5. Run the `yarn start` command to start the server and setup the agent-to-agent connection.
 
 ## Usage instructions
 
@@ -56,25 +56,9 @@ During startup, the server attempts to setup the agent-to-agent connection. This
 
 **Method:** `GET`
 
-### Register a schema and credential definition
-
-Register a schema and a corresponding credential definition to the DID network registry. This endpoint takes a JSON body.
-
-**Endpoint:** `/register-schema-and-credential-definition`
-
-**Method:** `POST`
-
-**Body:**
-
-```json
-{
-  "schemaName": "Name for the created schema"
-}
-```
-
 ### Issue a credential
 
-Trigger a credential issuance offer from the issuer agent to the holder agent. This endpoint takes a JSON body.
+Trigger a credential issuance offer from the issuer agent to the holder agent. This endpoint takes a JSON body. You can issue two types of credentials, `"AcmeCorpEmployee"` and `"AcmeCorpResident"`.
 
 **Endpoint:** `/issue-credential`
 
@@ -84,8 +68,10 @@ Trigger a credential issuance offer from the issuer agent to the holder agent. T
 
 ```json
 {
-  "credentialDefinitionId": "Credential definition id (as returned from the schema and credential definition registration endpoint's response)",
-  "holderName": "Preferred name of the holder of the issued credential"
+  "type": "AcmeCorpEmployee", // or "AcmeCorpResident"
+  "firstName": "Jim",
+  "lastName": "Ezesinachi",
+  "age": 26
 }
 ```
 
@@ -101,7 +87,8 @@ Trigger a proof presentation request from the issuer agent to the holder agent. 
 
 ```json
 {
-  "credentialDefinitionId": "Credential definition id (as returned from the registration endpoint response)"
+  "type": "AcmeCorpEmployee",
+  "credentialRecordId": "95e7ee28-5cc8-44e8-aece-61071e51c6d0" // NOTE: make sure the ID you pass matches the type of credential, else it won't work
 }
 ```
 

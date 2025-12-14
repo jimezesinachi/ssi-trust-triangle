@@ -1,107 +1,209 @@
 import {
-  CredentialEventTypes,
-  CredentialExchangeRecord,
-  CredentialState,
-  CredentialStateChangedEvent,
-} from "@aries-framework/core";
-import { AgentType } from "../config/base";
+  SdJwtVcRecord,
+  W3cCredentialRecord,
+  DidKey,
+  getJwkFromKey,
+  KeyDidCreateOptions,
+} from "@credo-ts/core";
+import {
+  OpenId4VciCredentialFormatProfile,
+  OpenId4VcIssuanceSessionStateChangedEvent,
+  OpenId4VcIssuerEvents,
+} from "@credo-ts/openid4vc";
+
+import { HolderAgentType, IssuerAgentType } from "../config/base";
+import { CredentialType } from "../constants/credentialTypes";
 
 const issueCredential = async ({
   agent,
-  connectionId,
-  credentialDefinitionId,
-  holderName,
+  issuerId,
+  credentialType,
+  firstName,
+  lastName,
+  age,
 }: {
-  agent: AgentType;
-  connectionId: string;
-  credentialDefinitionId: string;
-  holderName: string | undefined;
+  agent: IssuerAgentType;
+  issuerId: string;
+  credentialType: CredentialType;
+  firstName: string;
+  lastName: string;
+  age: number;
 }) => {
-  const issuerCredentialExchangeRecord =
-    await agent.credentials.offerCredential({
-      protocolVersion: "v2",
-      connectionId,
-      credentialFormats: {
-        anoncreds: {
-          credentialDefinitionId,
-          attributes: [{ name: "name", value: holderName ?? "Jim Ezesinachi" }],
-        },
+  const { credentialOffer, issuanceSession } =
+    await agent.modules.openId4VcIssuer.createCredentialOffer({
+      issuerId,
+      // Values must match the `id` of the credential supported by the issuer
+      offeredCredentials: [credentialType],
+
+      // Only pre-authorized code flow is supported
+      preAuthorizedCodeFlowConfig: {
+        userPinRequired: false,
+      },
+
+      issuanceMetadata: {
+        firstName: firstName,
+        lastName: lastName,
+        age: age,
       },
     });
 
-  return { issuerCredentialExchangeRecord } as const;
+  // Listen and react to changes in the issuance session
+  agent.events.on<OpenId4VcIssuanceSessionStateChangedEvent>(
+    OpenId4VcIssuerEvents.IssuanceSessionStateChanged,
+    async ({ payload }) => {
+      if (payload.issuanceSession.id === issuanceSession.id) {
+        console.log(
+          "Issuer agent - Issuance session state changed to: ",
+          payload.issuanceSession.state
+        );
+      }
+    }
+  );
+
+  return { credentialOffer, issuanceSession } as const;
 };
 
-const setupHolderCredentialExchangeListener = async (agent: AgentType) => {
-  console.log("Waiting for issuer to send credential offer...");
+const resolveCredentialOffer = async (
+  agent: HolderAgentType,
+  credentialOfferOrIssuanceSessionUri: string
+) => {
+  console.log("Holder agent - Credential offer received!");
 
-  const getCredentialExchangeRecord = () =>
-    new Promise<CredentialExchangeRecord>((resolve, reject) => {
-      // Timeout of 30 seconds
-      const timeoutId = setTimeout(
-        () => reject(new Error("Missing credential exchange record!")),
-        30000
-      );
+  // Resolved credential offer contains the offer, metadata, etc..
+  const resolvedCredentialOffer =
+    await agent.modules.openId4VcHolderModule.resolveCredentialOffer(
+      credentialOfferOrIssuanceSessionUri
+    );
 
-      // Start listener
-      agent.events.on<CredentialStateChangedEvent>(
-        CredentialEventTypes.CredentialStateChanged,
-        async ({ payload }) => {
-          switch (payload.credentialRecord.state) {
-            case CredentialState.OfferReceived:
-              console.log("Credential offer received!");
+  console.log(
+    "Holder agent - Resolved credential offer: ",
+    JSON.stringify(resolvedCredentialOffer.credentialOfferPayload, null, 2)
+  );
 
-              await agent.credentials.acceptOffer({
-                credentialRecordId: payload.credentialRecord.id,
-              });
+  // Issuer only supports pre-authorized flow for now
+  const credentials =
+    await agent.modules.openId4VcHolderModule.acceptCredentialOfferUsingPreAuthorizedCode(
+      resolvedCredentialOffer,
+      {
+        credentialBindingResolver: async ({
+          supportedDidMethods,
+          keyType,
+          supportsAllDidMethods,
+          supportsJwk,
+          credentialFormat,
+        }) => {
+          if (
+            supportsAllDidMethods ||
+            supportedDidMethods?.includes("did:key")
+          ) {
+            const didResult = await agent.dids.create<KeyDidCreateOptions>({
+              method: "key",
+              options: {
+                keyType,
+              },
+            });
 
-              break;
-            case CredentialState.Done:
-              console.log(
-                `Credential for credential id ${payload.credentialRecord.id} has been received, and the exchange is completed!`
-              );
+            if (didResult.didState.state !== "finished") {
+              throw new Error("Holder agent - DID creation failed!");
+            }
 
-              clearTimeout(timeoutId);
-              resolve(payload.credentialRecord);
+            const didKey = DidKey.fromDid(didResult.didState.did);
+
+            return {
+              method: "did",
+              didUrl: `${didKey.did}#${didKey.key.fingerprint}`,
+            };
           }
-        }
-      );
-    });
 
-  const holderCredentialExchangeRecord = await getCredentialExchangeRecord();
+          if (
+            supportsJwk &&
+            credentialFormat === OpenId4VciCredentialFormatProfile.SdJwtVc
+          ) {
+            const key = await agent.wallet.createKey({
+              keyType,
+            });
 
-  return { holderCredentialExchangeRecord } as const;
+            return {
+              method: "jwk",
+              jwk: getJwkFromKey(key),
+            };
+          }
+
+          throw new Error("Holder agent - Unable to create a key binding!");
+        },
+      }
+    );
+
+  console.log(
+    "Holder agent - Received credentials",
+    JSON.stringify(credentials, null, 2)
+  );
+
+  // Store the received credentials
+  const records: Array<
+    W3cCredentialRecord | SdJwtVcRecord
+    // | MdocRecord
+  > = [];
+
+  for (const credential of credentials) {
+    if ("compact" in credential) {
+      const record = await agent.sdJwtVc.store(credential.compact);
+      records.push(record);
+    }
+    // else if ("issuerSignedDocument" in credential) {
+    //   const record = await agent.mdoc.store(credential);
+    //   records.push(record);
+    // }
+    else {
+      const record = await agent.w3cCredentials.storeCredential({
+        credential,
+      });
+      records.push(record);
+    }
+  }
+
+  return { records } as const;
 };
 
 export const issue = async ({
   issuer,
   holder,
-  connectionId,
-  credentialDefinitionId,
-  holderName,
+  issuerId,
+  credentialType,
+  firstName,
+  lastName,
+  age,
 }: {
-  issuer: AgentType;
-  holder: AgentType;
-  connectionId: string;
-  credentialDefinitionId: string;
-  holderName: string | undefined;
+  issuer: IssuerAgentType;
+  holder: HolderAgentType;
+  issuerId: string;
+  credentialType: CredentialType;
+  firstName: string;
+  lastName: string;
+  age: number;
 }) => {
-  console.log("Listening for credential state changes as holder...");
-  const holderCredentialExchangePromise =
-    setupHolderCredentialExchangeListener(holder);
-
-  console.log("Issuing credential as issuer...");
-  const issuerCredentialExchangeRecord = await issueCredential({
+  console.log("Issuer agent - Creating credential offer as issuer...");
+  const issuerIssuanceSessionRecord = await issueCredential({
     agent: issuer,
-    connectionId,
-    credentialDefinitionId,
-    holderName,
+    issuerId,
+    credentialType,
+    firstName,
+    lastName,
+    age,
   });
 
-  const holderCredentialExchangeRecord = await holderCredentialExchangePromise;
+  console.log(
+    "Issuer agent - Credential offer:",
+    JSON.stringify(issuerIssuanceSessionRecord, null, 2)
+  );
+
+  const holderCredentialRecords = await resolveCredentialOffer(
+    holder,
+    issuerIssuanceSessionRecord.credentialOffer
+  );
 
   return {
-    issuerCredentialExchangeRecord,
-    holderCredentialExchangeRecord,
+    issuerIssuanceSessionRecord,
+    holderCredentialRecords,
   } as const;
 };

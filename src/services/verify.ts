@@ -1,120 +1,215 @@
+import { DidKey, DifPexInputDescriptorToCredentials } from "@credo-ts/core";
+import { HolderAgentType, IssuerAgentType } from "../config/base";
 import {
-  ProofEventTypes,
-  ProofExchangeRecord,
-  ProofState,
-  ProofStateChangedEvent,
-} from "@aries-framework/core";
-import { AgentType } from "../config/base";
+  OpenId4VcVerificationSessionState,
+  OpenId4VcVerificationSessionStateChangedEvent,
+  OpenId4VcVerifierEvents,
+} from "@credo-ts/openid4vc";
+
+import { CredentialType } from "../constants/credentialTypes";
 
 const sendProofRequest = async ({
   agent,
-  connectionId,
-  credentialDefinitionId,
+  credentialType,
+  verifierId,
+  verifierDidKey,
 }: {
-  agent: AgentType;
-  connectionId: string;
-  credentialDefinitionId: string;
+  agent: IssuerAgentType;
+  credentialType: CredentialType;
+  verifierId: string;
+  verifierDidKey: DidKey;
 }) => {
-  const proofAttribute = {
-    name: {
-      name: "name",
-      restrictions: [
-        {
-          cred_def_id: credentialDefinitionId,
-        },
-      ],
-    },
-  };
-
-  const requesterProofExchangeRecord = await agent.proofs.requestProof({
-    protocolVersion: "v2",
-    connectionId,
-    proofFormats: {
-      anoncreds: {
-        name: "proof-request",
-        version: "1.0",
-        requested_attributes: proofAttribute,
+  const { authorizationRequest, verificationSession } =
+    await agent.modules.openId4VcVerifier.createAuthorizationRequest({
+      verifierId,
+      requestSigner: {
+        didUrl: `${verifierDidKey.did}#${verifierDidKey.key.fingerprint}`,
+        method: "did",
       },
-    },
-  });
-
-  return { requesterProofExchangeRecord } as const;
-};
-
-const setupPresenterProofListener = async (agent: AgentType) => {
-  console.log("Waiting for requester to send proof request...");
-
-  const getProofExchangeRecord = () =>
-    new Promise<ProofExchangeRecord>((resolve, reject) => {
-      // Timeout of 30 seconds
-      const timeoutId = setTimeout(
-        () => reject(new Error("Missing proof exchange record!")),
-        30000
-      );
-
-      // Start listener
-      agent.events.on<ProofStateChangedEvent>(
-        ProofEventTypes.ProofStateChanged,
-        async ({ payload }) => {
-          switch (payload.proofRecord.state) {
-            case ProofState.RequestReceived:
-              console.log("Proof request received!");
-
-              const requestedCredentials =
-                await agent.proofs.selectCredentialsForRequest({
-                  proofRecordId: payload.proofRecord.id,
-                });
-
-              await agent.proofs.acceptRequest({
-                proofRecordId: payload.proofRecord.id,
-                proofFormats: requestedCredentials.proofFormats,
-              });
-
-              break;
-            case ProofState.Done:
-              console.log(
-                `Proof presentation for proof id ${payload.proofRecord.id} has been accepted by its requester, and the exchange is completed!`
-              );
-
-              clearTimeout(timeoutId);
-              resolve(payload.proofRecord);
-          }
-        }
-      );
+      // Add DIF presentation exchange data
+      presentationExchange: {
+        definition: {
+          id: "9ed05140-b33b-445e-a0f0-9a23aa501868",
+          name: `${credentialType} Verification`,
+          purpose: `We need to verify your ${credentialType} status to grant access to the ${credentialType} portal`,
+          input_descriptors: [
+            {
+              id: "9c98fb43-6fd5-49b1-8dcc-69bd2a378f23",
+              constraints: {
+                // Require limit disclosure
+                limit_disclosure: "required",
+                fields: [
+                  {
+                    filter: {
+                      type: "string",
+                      const: credentialType,
+                    },
+                    path: ["$.vct"],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
     });
 
-  const presenterProofExchangeRecord = await getProofExchangeRecord();
+  // Listen and react to changes in the verification session
+  agent.events.on<OpenId4VcVerificationSessionStateChangedEvent>(
+    OpenId4VcVerifierEvents.VerificationSessionStateChanged,
+    async ({ payload }) => {
+      if (payload.verificationSession.id === verificationSession.id) {
+        console.log(
+          "Verifier agent - Verification session state changed to: ",
+          payload.verificationSession.state
+        );
+      }
 
-  return { presenterProofExchangeRecord } as const;
+      if (
+        payload.verificationSession.state ===
+        OpenId4VcVerificationSessionState.ResponseVerified
+      ) {
+        const verifiedAuthorizationResponse =
+          await agent.modules.openId4VcVerifier.getVerifiedAuthorizationResponse(
+            verificationSession.id
+          );
+
+        console.log(
+          "Verifier agent - Successfully verified presentation: ",
+          JSON.stringify(
+            verifiedAuthorizationResponse.presentationExchange?.presentations,
+            null,
+            2
+          ),
+          ""
+        );
+      }
+    }
+  );
+
+  return {
+    authorizationRequest,
+    verificationSession,
+  } as const;
+};
+
+const resolveSiopAuthorizationRequest = async (
+  agent: HolderAgentType,
+  credentialId: string,
+  proofOfferOrVerificationSessionUri: string
+) => {
+  console.log("Presenter agent - Verification request received!");
+
+  try {
+    // Resolved credential offer contains the offer, metadata, etc..
+    const resolvedAuthorizationRequest =
+      await agent.modules.openId4VcHolderModule.resolveSiopAuthorizationRequest(
+        proofOfferOrVerificationSessionUri
+      );
+
+    if (!resolvedAuthorizationRequest.presentationExchange) {
+      return new Error(
+        "Presenter agent - No presentation exchange found in request!"
+      );
+    }
+
+    // Automatically select credentials. In a wallet you could manually choose which credentials
+    // to return based on the "resolvedAuthorizationRequest.presentationExchange.credentialsForRequest" value
+    // const selectedCredentials =
+    //   presentationExchangeService.selectCredentialsForRequest(
+    //     resolvedAuthorizationRequest.presentationExchange.credentialsForRequest
+    //   );
+
+    // Manually select credential based on the credentialId provided
+    const credentialsForRequest =
+      resolvedAuthorizationRequest.presentationExchange.credentialsForRequest;
+
+    if (!credentialsForRequest.areRequirementsSatisfied) {
+      return new Error(
+        "Presenter agent - Could not find the required credentials for the presentation submission!"
+      );
+    }
+
+    const selectedCredentials: DifPexInputDescriptorToCredentials = {};
+
+    for (const requirement of credentialsForRequest.requirements) {
+      // Take needsCount entries from the submission entry
+      for (const submission of requirement.submissionEntry.slice(
+        0,
+        requirement.needsCount
+      )) {
+        if (!selectedCredentials[submission.inputDescriptorId]) {
+          selectedCredentials[submission.inputDescriptorId] = [];
+        }
+
+        for (const credential of submission.verifiableCredentials) {
+          if (credential.credentialRecord.id === credentialId) {
+            selectedCredentials[submission.inputDescriptorId].push(
+              credential.credentialRecord
+            );
+          }
+        }
+      }
+    }
+
+    // If no matching credentials found, return error
+    if (Object.keys(selectedCredentials).length === 0) {
+      return new Error(
+        "Presenter agent - Could not find the required credentials for the presentation submission!"
+      );
+    }
+
+    // Issuer only supports pre-authorized flow for now
+    const authorizationResponse =
+      await agent.modules.openId4VcHolderModule.acceptSiopAuthorizationRequest({
+        authorizationRequest: resolvedAuthorizationRequest.authorizationRequest,
+        presentationExchange: {
+          credentials: selectedCredentials,
+        },
+      });
+
+    return { authorizationResponse } as const;
+  } catch (e) {
+    return new Error(e);
+  }
 };
 
 export const verify = async ({
   issuer,
   holder,
-  connectionId,
-  credentialDefinitionId,
+  credentialType,
+  credentialId,
+  verifierId,
+  verifierDidKey,
 }: {
-  issuer: AgentType;
-  holder: AgentType;
-  connectionId: string;
-  credentialDefinitionId: string;
+  issuer: IssuerAgentType;
+  holder: HolderAgentType;
+  credentialType: CredentialType;
+  credentialId: string;
+  verifierId: string;
+  verifierDidKey: DidKey;
 }) => {
-  console.log("Listening for proof state changes as presenter...");
-  const presenterProofExchangeListenerPromise =
-    setupPresenterProofListener(holder);
-
-  console.log("Sending proof request as requester...");
-  const requesterProofExchangeRecord = await sendProofRequest({
+  console.log("Verifier agent - Creating verification request as verifier...");
+  const verifierVerificationSessionRecord = await sendProofRequest({
     agent: issuer,
-    connectionId,
-    credentialDefinitionId,
+    credentialType,
+    verifierId,
+    verifierDidKey,
   });
 
-  const presenterProofExchangeRecord =
-    await presenterProofExchangeListenerPromise;
+  console.log(
+    "Verifier agent - Verification request: ",
+    JSON.stringify(verifierVerificationSessionRecord, null, 2)
+  );
+
+  const presenterAuthorizationResponse = await resolveSiopAuthorizationRequest(
+    holder,
+    credentialId,
+    verifierVerificationSessionRecord.authorizationRequest
+  );
 
   return {
-    requesterProofExchangeRecord,
-    presenterProofExchangeRecord,
+    verifierVerificationSessionRecord,
+    presenterAuthorizationResponse,
   } as const;
 };

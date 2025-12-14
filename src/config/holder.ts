@@ -1,19 +1,20 @@
 import {
   Agent,
   ConsoleLogger,
-  InitConfig,
-  LogLevel,
   HttpOutboundTransport,
-} from "@aries-framework/core";
-import { agentDependencies, HttpInboundTransport } from "@aries-framework/node";
+  InitConfig,
+  KeyDidCreateOptions,
+  KeyType,
+  LogLevel,
+} from "@credo-ts/core";
+import { agentDependencies, HttpInboundTransport } from "@credo-ts/node";
 
-import { getAgentModules } from "../utils/getAgentModules";
-import { importDid } from "../utils/importDid";
+import { getHolderAgentModules } from "../utils/getAgentModules";
 
 export const initializeHolderAgent = async (port: number) => {
   const config: InitConfig = {
     label: "jimezesinachi-holder-agent-0",
-    logger: new ConsoleLogger(LogLevel.info),
+    logger: new ConsoleLogger(LogLevel.error),
     walletConfig: {
       id: "jim-ezesinachi-holder-agent-wallet-id-0",
       key: "jim-ezesinachi-holder-agent-test-key-0000000000000000000000000",
@@ -25,31 +26,37 @@ export const initializeHolderAgent = async (port: number) => {
 
   const agent = new Agent({
     config,
-    modules: getAgentModules(),
+    modules: getHolderAgentModules(),
     dependencies: agentDependencies,
   });
 
   agent.registerInboundTransport(new HttpInboundTransport({ port }));
-
   agent.registerOutboundTransport(new HttpOutboundTransport());
 
   await agent
     .initialize()
     .then(() => {
-      console.log("Agent initialized!");
+      console.log("Holder agent - Agent initialized!");
     })
     .catch((e) => {
       console.error(
-        `Something went wrong while setting up the agent! Error: ${e}`
+        `Something went wrong while setting up the holder agent! Error: ${e}`
       );
     });
 
-  console.log("Importing holder DID...");
-  const holderDid = await importDid({
-    agent,
-    seed: "abcdabcdabcdabcdabcdabcdabcdabcd",
-    did: "JzX62Lx14LqNony52LhQ13",
+  console.log("Creating holder DID...");
+
+  // Create a did:key that we will use for issuance
+  const holderDidResult = await agent.dids.create<KeyDidCreateOptions>({
+    method: "key",
+    options: {
+      keyType: KeyType.Ed25519,
+    },
   });
 
-  return { agent, holderDid } as const;
+  if (holderDidResult.didState.state !== "finished") {
+    throw new Error("Holder DID creation failed!");
+  }
+
+  return { agent, holderDid: holderDidResult } as const;
 };

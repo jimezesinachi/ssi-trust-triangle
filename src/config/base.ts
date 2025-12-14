@@ -1,11 +1,12 @@
+import { Agent, ConsoleLogger, InitConfig, LogLevel } from "@credo-ts/core";
+import { agentDependencies } from "@credo-ts/node";
+import { Router } from "express";
+
 import {
-  Agent,
-  ConsoleLogger,
-  InitConfig,
-  LogLevel,
-} from "@aries-framework/core";
-import { getAgentModules } from "../utils/getAgentModules";
-import { agentDependencies } from "@aries-framework/node";
+  getIssuerAgentModules,
+  getHolderAgentModules,
+  getAgentModules,
+} from "../utils/getAgentModules";
 
 const config: InitConfig = {
   label: "jimezesinachi-agent-0",
@@ -26,3 +27,19 @@ const agent = new Agent({
 });
 
 export type AgentType = typeof agent;
+
+const issuer = new Agent({
+  config,
+  modules: getIssuerAgentModules(0, Router(), Router()),
+  dependencies: agentDependencies,
+});
+
+export type IssuerAgentType = typeof issuer;
+
+const holder = new Agent({
+  config,
+  modules: getHolderAgentModules(),
+  dependencies: agentDependencies,
+});
+
+export type HolderAgentType = typeof holder;

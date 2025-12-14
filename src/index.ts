@@ -1,25 +1,115 @@
 import "dotenv/config";
-import express from "express";
+import express, { Router, Request, Response } from "express";
+
 import { initialize } from "./services/initialize";
 import { connect } from "./services/connect";
-import { register } from "./services/register";
 import { issue } from "./services/issue";
 import { verify } from "./services/verify";
 import {
-  RegisterSchemaAndCredentialDefinitionInputValidator,
   IssueCredentialInputValidator,
   RequestProofInputValidator,
 } from "./validators/zod";
 
 const app = express();
+
 const port = Number(process.env.SERVER_PORT);
 const issuerPort = Number(process.env.ISSUER_INBOUND_TRANSPORT_PORT);
 const holderPort = Number(process.env.HOLDER_INBOUND_TRANSPORT_PORT);
 
 app.listen(port, async () => {
+  const issuerRouter = async (req: Request, res: Response) => {
+    console.log("Issuer agent - Starting issuance flow...");
+
+    const parseResult = IssueCredentialInputValidator.safeParse(req.body);
+
+    if (parseResult.success) {
+      const { data: input } = parseResult;
+
+      const issuanceResult = await issue({
+        issuer: issuer.agent,
+        credentialType: input.type,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        age: input.age,
+        issuerId:
+          input.type === "AcmeCorpEmployee"
+            ? issuer.openid4vcEmployeeIssuer.issuerId
+            : input.type === "AcmeCorpResident"
+            ? issuer.openid4vcResidentIssuer.issuerId
+            : "",
+        holder: holder.agent,
+      });
+
+      return res.status(200).json({
+        message: "Credential issued successfully!",
+        data: issuanceResult,
+      });
+    } else
+      return res.status(400).json({
+        messsage: "Bad Request! Invalid input received!",
+        data: parseResult.error.format(),
+      });
+  };
+
+  const verifierRouter = async (req: Request, res: Response) => {
+    console.log("Verifier agent - Starting verification flow...");
+
+    const parseResult = RequestProofInputValidator.safeParse(req.body);
+
+    if (parseResult.success) {
+      const { data: input } = parseResult;
+
+      const selectedCredential = await holder.agent.sdJwtVc.getById(
+        input.credentialRecordId
+      );
+
+      if (!selectedCredential) {
+        return res.status(400).json({
+          messsage:
+            "Bad Request! Could not find the credential for the supplied ID!",
+          data: input,
+        });
+      }
+
+      const verificationResult = await verify({
+        issuer: issuer.agent,
+        holder: holder.agent,
+        credentialType: input.type,
+        credentialId: input.credentialRecordId,
+        verifierId: issuer.openId4VcVerifier.verifierId,
+        verifierDidKey: issuer.verifierDidKey,
+      });
+
+      if (verificationResult.presenterAuthorizationResponse instanceof Error) {
+        return res.status(400).json({
+          messsage: "Bad Request! Invalid input received!",
+          data: verificationResult.presenterAuthorizationResponse.message,
+        });
+      }
+
+      return res.status(200).json({
+        message: "Credential verified successfully!",
+        data: verificationResult,
+      });
+    } else
+      return res.status(400).json({
+        messsage: "Bad Request! Invalid input received!",
+        data: parseResult.error.format(),
+      });
+  };
+
+  const ir = Router();
+  const vr = Router();
+
+  app.use("/oid4vci", ir);
+  app.use("/siop", vr);
+
   const { issuer, holder } = await initialize({
+    serverPort: port,
     issuerPort,
     holderPort,
+    issuerRouter: ir,
+    verifierRouter: vr,
   });
 
   const { requesterOutOfBandRecord, responderOutOfBandRecord } = await connect({
@@ -54,80 +144,8 @@ app.listen(port, async () => {
       });
   });
 
-  app.post("/register-schema-and-credential-definition", async (req, res) => {
-    const parseResult =
-      RegisterSchemaAndCredentialDefinitionInputValidator.safeParse(req.body);
-
-    if (parseResult.success) {
-      console.log("Registering...");
-
-      const { data: input } = parseResult;
-
-      const registrationResult = await register({
-        issuer: issuer.agent,
-        issuerDid: issuer.issuerDid,
-        schemaName: input.schemaName,
-      });
-
-      return res.status(201).send({
-        message: "Registered!",
-        data: registrationResult,
-      });
-    } else
-      return res.status(400).send({
-        messsage: "Bad Request! Invalid input received!",
-        data: parseResult.error.format(),
-      });
-  });
-
-  app.post("/issue-credential", async (req, res) => {
-    const parseResult = IssueCredentialInputValidator.safeParse(req.body);
-
-    if (parseResult.success) {
-      console.log("Issuing...");
-
-      const { data: input } = parseResult;
-
-      const issuanceResult = await issue({
-        issuer: issuer.agent,
-        holder: holder.agent,
-        connectionId: issuerConnection.id,
-        credentialDefinitionId: input.credentialDefinitionId,
-        holderName: input.holderName,
-      });
-
-      return res.status(200).send({ message: "Issued!", data: issuanceResult });
-    } else
-      return res.status(400).send({
-        messsage: "Bad Request! Invalid input received!",
-        data: parseResult.error.format(),
-      });
-  });
-
-  app.post("/verify-credential", async (req, res) => {
-    const parseResult = RequestProofInputValidator.safeParse(req.body);
-
-    if (parseResult.success) {
-      console.log("Verifying...");
-
-      const { data: input } = parseResult;
-
-      const verificationResult = await verify({
-        issuer: issuer.agent,
-        holder: holder.agent,
-        connectionId: issuerConnection.id,
-        credentialDefinitionId: input.credentialDefinitionId,
-      });
-
-      return res
-        .status(200)
-        .send({ message: "Verified!", data: verificationResult });
-    } else
-      return res.status(400).send({
-        messsage: "Bad Request! Invalid input received!",
-        data: parseResult.error.format(),
-      });
-  });
+  app.post("/issue-credential", issuerRouter);
+  app.post("/verify-credential", verifierRouter);
 
   app.get("/", (req, res) => {
     return res.status(200).send({

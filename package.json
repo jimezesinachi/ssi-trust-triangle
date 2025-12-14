@@ -1,13 +1,14 @@
 {
   "name": "ssi-trust-triangle",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "license": "MIT",
   "author": {
     "name": "Jim Ezesinachi",
     "url": "https://github.com/jimezesinachi"
   },
   "scripts": {
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+    "start": "ts-node src/index.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -15,26 +16,14 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@aries-framework/anoncreds": "^0.4.0",
-    "@aries-framework/anoncreds-rs": "^0.4.0",
-    "@aries-framework/askar": "^0.4.0",
-    "@aries-framework/core": "^0.4.0",
-    "@aries-framework/indy-vdr": "^0.4.0",
-    "@aries-framework/node": "^0.4.0",
-    "@hyperledger/anoncreds-nodejs": "^0.1.0",
-    "@hyperledger/anoncreds-shared": "^0.1.0",
-    "@hyperledger/aries-askar-nodejs": "^0.1.0",
-    "@hyperledger/aries-askar-shared": "^0.1.0",
-    "@hyperledger/indy-vdr-nodejs": "^0.1.0",
-    "@hyperledger/indy-vdr-shared": "^0.1.0",
+    "@credo-ts/askar": "0.5.3",
+    "@credo-ts/core": "0.5.3",
+    "@credo-ts/node": "0.5.3",
+    "@credo-ts/openid4vc": "0.5.3",
+    "@hyperledger/aries-askar-nodejs": "^0.2.1",
+    "@hyperledger/aries-askar-shared": "^0.2.1",
     "@types/node": "*",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.2"
-  },
-  "engines": {
-    "node": "18.x.x"
-  },
-  "resolutions": {
-    "ref-napi": "npm:@2060.io/ref-napi"
   }
 }

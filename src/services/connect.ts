@@ -3,14 +3,14 @@ import {
   ConnectionRecord,
   ConnectionStateChangedEvent,
   OutOfBandRecord,
-} from "@aries-framework/core";
-import { AgentType } from "../config/base";
+} from "@credo-ts/core";
+import { AgentType, HolderAgentType, IssuerAgentType } from "../config/base";
 
 const createNewInvitation = async ({
   agent,
   port,
 }: {
-  agent: AgentType;
+  agent: IssuerAgentType;
   port: number;
 }) => {
   const outOfBandRecord = await agent.oob.createInvitation();
@@ -35,7 +35,10 @@ const createLegacyInvitation = async ({
   return invitation.toUrl({ domain: `http://localhost:${port}` });
 };
 
-const receiveInvitation = async (agent: AgentType, invitationUrl: string) => {
+const receiveInvitation = async (
+  agent: HolderAgentType,
+  invitationUrl: string
+) => {
   const { outOfBandRecord } = await agent.oob.receiveInvitationFromUrl(
     invitationUrl
   );
@@ -44,7 +47,7 @@ const receiveInvitation = async (agent: AgentType, invitationUrl: string) => {
 };
 
 const setupRequesterConnectionListener = async (
-  agent: AgentType,
+  agent: IssuerAgentType,
   outOfBandRecord: OutOfBandRecord
 ) => {
   console.log("Waiting for holder to accept connection request...");
@@ -53,7 +56,7 @@ const setupRequesterConnectionListener = async (
     new Promise<ConnectionRecord>((resolve, reject) => {
       // Timeout of 30 seconds
       const timeoutId = setTimeout(
-        () => reject(new Error("Missing connection record!")),
+        () => reject(new Error("Missing connection request record!")),
         30000
       );
 
@@ -103,8 +106,8 @@ export const connect = async ({
   holder,
   port,
 }: {
-  issuer: AgentType;
-  holder: AgentType;
+  issuer: IssuerAgentType;
+  holder: HolderAgentType;
   port: number;
 }) => {
   console.log("Creating the invitation as requester...");

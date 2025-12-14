@@ -1,18 +1,14 @@
 import { z } from "zod";
-
-const SchemaName = z.string().min(1).max(75);
-const CredentialDefinitionId = z.string().min(1);
-const HolderName = z.string().min(1).max(100).optional();
-
-export const RegisterSchemaAndCredentialDefinitionInputValidator = z.object({
-  schemaName: SchemaName,
-});
+import { CredentialType } from "../constants/credentialTypes";
 
 export const IssueCredentialInputValidator = z.object({
-  credentialDefinitionId: CredentialDefinitionId,
-  holderName: HolderName,
+  type: z.nativeEnum(CredentialType),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  age: z.number().min(0).max(999),
 });
 
 export const RequestProofInputValidator = z.object({
-  credentialDefinitionId: CredentialDefinitionId,
+  type: z.nativeEnum(CredentialType),
+  credentialRecordId: z.string().uuid(),
 });
