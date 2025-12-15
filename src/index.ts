@@ -144,12 +144,23 @@ app.listen(port, async () => {
       });
   });
 
+  app.get("/credentials", async (req, res) => {
+    const credentials = await holder.agent.sdJwtVc.getAll();
+
+    return res.status(200).send({
+      message: "Fetched all credentials successfully!",
+      length: credentials.length,
+      data: credentials,
+    });
+  });
+
   app.post("/issue-credential", issuerRouter);
   app.post("/verify-credential", verifierRouter);
 
   app.get("/", (req, res) => {
     return res.status(200).send({
       message: "Welcome to Jim Ezesinachi's SSI trust triangle demo app!",
+      data: [],
     });
   });
 

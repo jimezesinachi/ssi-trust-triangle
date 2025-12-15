@@ -75,6 +75,14 @@ Trigger a credential issuance offer from the issuer agent to the holder agent. T
 }
 ```
 
+### Get all credentials
+
+Get all credentials that have been issued by the issuer agent to the holder agent.
+
+**Endpoint:** `/credentials`
+
+**Method:** `GET`
+
 ### Verify a credential
 
 Trigger a proof presentation request from the issuer agent to the holder agent. This endpoint takes a JSON body.
