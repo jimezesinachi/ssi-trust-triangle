@@ -28,8 +28,6 @@ export const credentialRequestToCredentialMapper: OpenId4VciCredentialRequestToC
       );
     }
 
-    issuanceSession.metadata;
-
     // Find the first did:key did in our wallet. You can modify this based on your needs
     const didsApi = agentContext.dependencyManager.resolve(DidsApi);
     const [didKeyDidRecord] = await didsApi.getCreatedDids({
