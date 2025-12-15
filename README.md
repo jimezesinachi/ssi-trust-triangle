@@ -32,7 +32,7 @@ Tech stack used:
 
    **NOTE:** You should edit the .env file to any port numbers of your choice.
 
-5. Run the `yarn start` command to start the server and setup the agent-to-agent connection.
+5. Run `yarn build` then `yarn start` to start the server and setup the agent-to-agent connection.
 
 ## Usage instructions
 
